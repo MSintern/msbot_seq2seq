@@ -342,6 +342,50 @@ def test():
             sys.stdout.flush()
             sentence = sys.stdin.readline()
 
+def init_session(sess):
+    model=create_model(sess,True)
+    model.batch_size=1
+    sess.run(tf.initialize_all_variables())
+    model.saver.restore(sess, os.path.join(FLAGS.model_dir, FLAGS.model_name))
+    return sess,model
+
+
+def decode_line(sess,model,sentence):
+    class TestBucket(object):
+        def __init__(self, sentence):
+            self.sentence = sentence
+        def random(self):
+            return sentence, ''
+    bucket_id = min([
+        b for b in range(len(buckets))
+        if buckets[b][0] > len(sentence)
+    ])
+    #return '1'
+    data, _ = model.get_batch_data(
+        {bucket_id: TestBucket(sentence)},
+        bucket_id
+    )
+    #return data[0][0]
+    encoder_inputs, decoder_inputs, decoder_weights = model.get_batch(
+        {bucket_id: TestBucket(sentence)},
+        bucket_id,
+        data
+    )
+    #return data[0][0]
+    _, _, output_logits = model.step(
+        sess,
+        encoder_inputs,
+        decoder_inputs,
+        decoder_weights,
+        bucket_id,
+        True
+    )
+    #return data[0][0]
+    outputs = [int(np.argmax(logit, axis=1)) for logit in output_logits]
+    ret = data_utils.indice_sentence(outputs)
+    return ret
+
+
 def main(_):
     if FLAGS.bleu > -1:
         test_bleu(FLAGS.bleu)
