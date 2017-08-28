@@ -20,6 +20,7 @@ class S2SModel(object):
                 max_gradient_norm,
                 batch_size,
                 learning_rate,
+                learning_rate_decay_factor,
                 num_samples,
                 forward_only=False,
                 dtype=tf.float32):
@@ -28,7 +29,10 @@ class S2SModel(object):
         self.target_vocab_size = target_vocab_size
         self.buckets = buckets
         self.batch_size = batch_size
-        self.learning_rate = learning_rate
+        #self.learning_rate = learning_rate
+        self.learning_rate = tf.Variable(float(learning_rate),trainable=False,dtype=dtype)
+        self.learning_rate_decay_op = self.learning_rate.assign(self.learning_rate*learning_rate_decay_factor)
+
 
         # LSTM cells
         cell = tf.contrib.rnn.BasicLSTMCell(size)

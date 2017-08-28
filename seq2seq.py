@@ -13,9 +13,22 @@ import seq2seq_model
 
 tf.app.flags.DEFINE_float(
     'learning_rate',
-    0.0003,
+    0.0005,
     '学习率'
 )
+
+tf.app.flags.DEFINE_float(
+    'learning_rate_decay_factor',
+    0.99,
+    '学习率衰减'
+)
+
+tf.app.flags.DEFINE_integer(
+    'steps_per_checkpoint',
+    10,
+    '每100步保存模型'
+)
+
 tf.app.flags.DEFINE_float(
     'max_gradient_norm',
     5.0,
@@ -53,7 +66,7 @@ tf.app.flags.DEFINE_integer(
 )
 tf.app.flags.DEFINE_integer(
     'num_per_epoch',
-    10000,
+    50000,
     '每轮训练多少随机样本'
 )
 tf.app.flags.DEFINE_string(
@@ -103,6 +116,7 @@ def create_model(session, forward_only):
         FLAGS.max_gradient_norm,
         FLAGS.batch_size,
         FLAGS.learning_rate,
+        FLAGS.learning_rate_decay_factor,
         FLAGS.num_samples,
         forward_only,
         dtype
@@ -137,7 +151,8 @@ def train():
             '{:.1f}%',
             '{}/{}',
             'loss={:.3f}',
-            '{}/{}'
+            '{}/{}',
+            'learning rate={:.5f}'
         ])
         bars_max = 20
         for epoch_index in range(1, FLAGS.num_epoch + 1):
@@ -145,6 +160,11 @@ def train():
             time_start = time.time()
             epoch_trained = 0
             batch_loss = []
+
+            #
+            previous_losses=[]
+            current_step=0
+            loss=0
             while True:
                 # 选择一个要训练的bucket
                 random_number = np.random.random_sample()
@@ -169,6 +189,20 @@ def train():
                     bucket_id,
                     False
                 )
+
+                loss=step_loss/FLAGS.steps_per_checkpoint
+                current_step+=1
+
+                if current_step % FLAGS.steps_per_checkpoint == 0:
+                    if len(previous_losses)>2 and loss>max(previous_losses[-3:]):
+                        sess.run(model.learning_rate_decay_op)
+                    previous_losses.append(loss)
+                    loss=0
+                    if not os.path.exists(FLAGS.model_dir):
+                        os.makedirs(FLAGS.model_dir)
+                    model.saver.save(sess, os.path.join(FLAGS.model_dir, FLAGS.model_name))
+
+
                 epoch_trained += FLAGS.batch_size
                 batch_loss.append(step_loss)
                 time_now = time.time()
@@ -181,7 +215,7 @@ def train():
                     percent,
                     epoch_trained, FLAGS.num_per_epoch,
                     np.mean(batch_loss),
-                    data_utils.time(time_spend), data_utils.time(time_estimate)
+                    data_utils.time(time_spend), data_utils.time(time_estimate),model.learning_rate.eval()
                 ))
                 sys.stdout.flush()
                 if epoch_trained >= FLAGS.num_per_epoch:
