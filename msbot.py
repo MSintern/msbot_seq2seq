@@ -80,6 +80,90 @@ def response():
     return jsonify( { 'text': res_msg } )
 
 
+@app.route('/api', methods=['GET', 'POST'])
+def api():
+    if request.method == 'GET':
+        if 'msg' in request.args:
+            req_msg = request.args['msg']
+            res_msg = seq2seq.decode_line(sess, model, req_msg)
+            return res_msg
+        else:
+            return bad_msg()
+    elif request.method == 'POST':
+        if 'Content-Type' in request.headers:
+            if request.headers['Content-Type'] == 'application/json':
+                json_ = request.get_json()
+                if 'msg' in json_:
+                    res_msg = seq2seq.decode_line(sess, model, json_['msg'])
+                    return res_msg
+                else:
+                    return bad_msg()
+
+            elif request.headers['Content-Type'] == 'application/x-www-form-urlencoded':
+                req_msg = request.form['msg']
+                if req_msg == None:
+                    return bad_msg()
+                else:
+                    res_msg = seq2seq.decode_line(sess, model, req_msg)
+                    return res_msg
+
+            elif request.headers['Content-Type'] == '':
+                str_data = request.get_data().decode('ascii')
+                dict_data = json.loads(str_data)
+                if 'msg' in dict_data:
+                    res_msg = seq2seq.decode_line(sess, model, dict_data['msg'])
+                    return res_msg
+                else:
+                    return bad_msg()
+
+            else:
+                return bad_contentType()
+        else:
+            str_data = request.get_data().decode('ascii')  # python3.5 need decode. 2.7 3.6 no need
+
+            dict_data = json.loads(str_data)
+
+            if 'msg' in dict_data:
+                res_msg = seq2seq.decode_line(sess, model, dict_data['msg'])
+                return res_msg
+            else:
+                return bad_msg()
+
+    else:
+        return bad_method()
+
+
+@app.errorhandler(400)
+def bad_msg(error=None):
+    message = {
+        'status': 400,
+        'message': 'msg must exist'
+    }
+    resp = jsonify(message)
+    resp.status_code = 400
+    return resp
+
+
+def bad_contentType(error=None):
+    message = {
+        'status': 400,
+        'message': 'Content-Type must be application/json or application/x-www-form-urlencoded'
+    }
+    resp = jsonify(message)
+    resp.status_code = 400
+    return resp
+
+
+@app.errorhandler(405)
+def bad_method():
+    message = {
+        'status': 405,
+        'message': 'HTTP method must be GET or POST'
+    }
+    resp = jsonify(message)
+    resp.status_code = 405
+    return resp
+
 
 @app.route("/")
 def index():
